@@ -1,200 +1,116 @@
-# Лабораторна робота №2  
-## Розробка простого HTTP-клієнта  
-### Використання Spotify Web API
 
----
+# Lab 2 — HTTP Client (Spotify Web API)
 
 ## 1. Мета роботи
-
-Ознайомитися з принципами роботи HTTP-клієнтів, виконанням HTTP-запитів методами GET і POST,  
-та реалізувати клієнт для взаємодії з публічним REST API.  
-Отримати практичні навички роботи з OAuth 2.0 Client Credentials Flow та обробкою JSON-даних.
+Отримати навички роботи з OAuth 2.0 Client Credentials Flow, виконання HTTP‑запитів та обробки даних Spotify Web API.
 
 ---
 
 ## 2. Опис API
 
 ### 2.1. Spotify Web API
-
-Spotify Web API — це REST API, що дозволяє отримувати дані про артистів, треки, альбоми, плейлисти,  
-а також здійснювати пошук музики.
-
-Документація:  
-https://developer.spotify.com/documentation/web-api
-
-### 2.2. Реєстрація застосунку
-
-Для доступу до API був створений застосунок **Lab2HTTPClient** у Spotify Developer Dashboard.  
-Було зазначено:
-
-- Website: `https://example.com`
-- Redirect URI: `http://127.0.0.1:8000/callback`
-- App Status: Development mode
-- API used: Web API
-
-Після створення були згенеровані **Client ID** та **Client Secret**.
-
-### 2.3. Скриншот налаштувань застосунку
-
-![dashboard](./screenshots/Screenshot_from_2025-11-16_14-15-35.png)
+Spotify Web API — REST API для отримання інформації про артистів, альбоми, треки.  
+Документація: https://developer.spotify.com/documentation/web-api
 
 ---
 
-## 3. Реалізація авторизації (OAuth 2.0 Client Credentials Flow)
+## 2.2. Реєстрація застосунку
 
-Для доступу до Spotify Web API виконується POST-запит:
+Створено застосунок **Lab2HTTPClient** у Spotify Developer Dashboard.  
+Було отримано:  
+- Client ID  
+- Client Secret  
 
-```
-https://accounts.spotify.com/api/token
-```
+---
 
-Заголовок:
+## 2.3. Скріншоти
 
-```
-Authorization: Basic base64(CLIENT_ID:CLIENT_SECRET)
-```
+### 1. Основна інформація застосунку  
+![1](screenshots/Screenshot from 2025-11-16 14-15-35.png)
 
-Тіло:
+### 2. Отримання Access Token  
+![2](screenshots/Screenshot from 2025-11-16 14-16-09.png)
 
-```
-grant_type=client_credentials
-```
+### 3. Інформація про артиста  
+![3](screenshots/Screenshot from 2025-11-16 14-16-27.png)
 
-### 3.1. Код отримання access-token
+### 4. Пошук треків та вивід результатів  
+![4](screenshots/Screenshot from 2025-11-16 14-27-16.png)
+
+---
+
+## 3. Код програми
 
 ```python
+import requests
+import base64
+import pandas as pd
+
+CLIENT_ID = "ВАШ_CLIENT_ID"
+CLIENT_SECRET = "ВАШ_CLIENT_SECRET"
+
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
+    auth_str = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    b64_auth = base64.b64encode(auth_str.encode()).decode()
 
-    auth_string = f"{CLIENT_ID}:{CLIENT_SECRET}"
-    auth_bytes = auth_string.encode("utf-8")
-    auth_base64 = base64.b64encode(auth_bytes).decode("utf-8")
-
-    headers = {
-        "Authorization": f"Basic {auth_base64}",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-
+    headers = {"Authorization": f"Basic {b64_auth}"}
     data = {"grant_type": "client_credentials"}
-
     response = requests.post(url, headers=headers, data=data)
-    response.raise_for_status()
+    return response.json().get("access_token")
 
-    return response.json()["access_token"]
-```
-
-### 3.2. Результат отримання токена
-
-![token](./screenshots/Screenshot_from_2025-11-16_14-16-09.png)
-
----
-
-## 4. GET-запит №1 — отримання інформації про артиста
-
-Було виконано запит:
-
-```
-GET https://api.spotify.com/v1/artists/1Xyo4u8uXC1ZmMpatF05PJ
-```
-
-(артист — **The Weeknd**)
-
-### 4.1. Код запиту
-
-```python
-def get_artist(token, artist_id):
+def get_artist_info(token, artist_id):
     url = f"https://api.spotify.com/v1/artists/{artist_id}"
     headers = {"Authorization": f"Bearer {token}"}
+    return requests.get(url, headers=headers).json()
 
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-
-    return response.json()
-```
-
-### 4.2. Результат виконання
-
-![artist](./screenshots/Screenshot_from_2025-11-16_14-19-28.png)
-
----
-
-## 5. GET-запит №2 — пошук треків
-
-Ендпоїнт пошуку:
-
-```
-https://api.spotify.com/v1/search
-```
-
-Параметри:
-
-```
-q=Blinding Lights
-type=track
-limit=5
-```
-
-### 5.1. Код пошуку
-
-```python
 def search_tracks(token, query):
-    url = "https://api.spotify.com/v1/search"
+    url = f"https://api.spotify.com/v1/search?q={query}&type=track&limit=5"
     headers = {"Authorization": f"Bearer {token}"}
-    params = {"q": query, "type": "track", "limit": 5}
+    return requests.get(url, headers=headers).json()
 
-    response = requests.get(url, headers=headers, params=params)
-    response.raise_for_status()
-    return response.json()
-```
-
-### 5.2. Результати пошуку
-
-![search](./screenshots/Screenshot_from_2025-11-16_14-27-16.png)
-
----
-
-## 6. Збереження даних у CSV
-
-Було збережено список знайдених треків у файл **tracks.csv** з полями:
-
-- track_name  
-- artist  
-- album  
-- popularity  
-
-### 6.1. Код збереження
-
-```python
-def save_to_csv(search_result, filename="tracks.csv"):
+def save_to_csv(data):
     tracks = []
-
-    for item in search_result["tracks"]["items"]:
+    for item in data["tracks"]["items"]:
         tracks.append({
-            "track_name": item["name"],
+            "name": item["name"],
             "artist": item["artists"][0]["name"],
             "album": item["album"]["name"],
             "popularity": item["popularity"]
         })
 
     df = pd.DataFrame(tracks)
-    df.to_csv(filename, index=False)
-    print(f"CSV-файл '{filename}' успішно створено!")
+    df.to_csv("tracks.csv", index=False)
+    print("CSV-файл 'tracks.csv' створено!")
+
+def main():
+    token = get_access_token()
+    print("== ACCESS TOKEN ОТРИМАНО ==")
+    print(token)
+
+    artist = get_artist_info(token, "1Xyo4u8uXC1ZmMpatF05PJ")
+    print("\n=== ІНФОРМАЦІЯ ПРО АРТИСТА ===")
+    print("Ім'я:", artist["name"])
+    print("Популярність:", artist["popularity"])
+    print("Підписники:", artist["followers"]["total"])
+
+    result = search_tracks(token, "blinding lights")
+    save_to_csv(result)
+
+if __name__ == "__main__":
+    main()
 ```
 
 ---
 
-## 7. Висновки
+## 4. Висновки
 
-У ході виконання лабораторної роботи було створено повноцінний HTTP-клієнт для взаємодії зі Spotify Web API.  
-
-Було реалізовано:
-
-- авторизацію через OAuth 2.0 Client Credentials  
-- отримання access token  
-- GET-запит до ендпоїнта артиста  
-- GET-запит для пошуку треків  
-- збереження отриманих результатів у CSV  
-
-Практично закріплено навички роботи з HTTP-протоколом, REST API, JSON, а також обробкою та збереженням даних у Python.
+У результаті роботи:
+- реалізовано авторизацію через OAuth 2.0 Client Credentials Flow;
+- отримано інформацію про артиста;
+- виконано пошук треків;
+- отримані дані збережено у CSV-файл;
+- підготовлено звіт з ілюстраціями.
 
 ---
+
